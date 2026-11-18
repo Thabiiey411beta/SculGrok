@@ -1,0 +1,27 @@
+{
+  "name": "sculgrok",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-agent Grok trading desk — Solana + Forex",
+  "scripts": {
+    "paper": "tsx apps/coordinator/src/index.ts --mode paper",
+    "live": "echo 'Refusing to start live without explicit confirmation. See docs/SAFETY.md' && exit 1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "desk": "echo 'Desk UI coming soon'"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "bridges/*"
+  ],
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
