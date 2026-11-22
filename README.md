@@ -83,7 +83,9 @@ SculGrok/
 |------------------------|--------------------------------|
 | Agent prompts          | ✅ Ready                       |
 | Anti-rug (Solana)      | ✅ Core checks implemented     |
-| Paper trading loop     | ✅ Scaffolded                  |
+| Exit ($3 ladder)       | ✅ Implemented in paper, see docs/MICRO-3USD.md |
+| Gem signal             | ✅ Implemented in paper, rug-first, score >= 70 |
+| Paper trading loop     | ✅ Scaffolded, plus --paper-sim |
 | Live Solana executor   | ⚠️ Implemented, not battle-tested — start tiny |
 | Forex bridge           | 🟡 Stub + interface only       |
 | Desk UI                | 🟡 Coming                      |

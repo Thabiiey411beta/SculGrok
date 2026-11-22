@@ -7,6 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { runPaper } from "./paper.js";
 
 const MODE = process.argv.includes("--mode") 
   ? process.argv[process.argv.indexOf("--mode") + 1] 
@@ -19,6 +20,12 @@ function loadPrompt(name: string): string {
 }
 
 async function main() {
+  if (process.argv.includes("--paper-sim")) {
+    const summary = runPaper(resolve(__dirname, "../../../paper-journal.jsonl"));
+    console.log("Paper simulation ($3 micro profile):");
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
   console.log("══════════════════════════════════════");
   console.log("  SculGrok  —  Multi-agent trading desk");
   console.log("══════════════════════════════════════");

@@ -10,6 +10,12 @@ You are the Scout. Your single job is to find clean setups and hand them to the 
 - Volume + social velocity spikes that are not pure wash
 - Graduation / migration events with clean LP
 
+## Gem-signal wiring (packages/signals/src/gem-signal.ts)
+- Anti-rug runs first. Any block, timeout, or missing hard check means no signal.
+- Score the survivors 0-100 on unique buyer growth, buy/sell volume, new wallet inflow, market-cap velocity, and smart-money clusters.
+- A signal is actionable only when the rug pass is clean, the score is at least 70, and the modelled fee break-even is under 25% gross at $3 size.
+- Otherwise emit actionable false with a written reason.
+
 **Forex / multi-asset**
 - Clear level + catalyst confluence
 - Session open / high-liquidity windows
