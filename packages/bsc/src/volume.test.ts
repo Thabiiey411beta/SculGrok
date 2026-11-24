@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  pregradActivityFloor,
   volumeMetrics,
   volumeScore,
   volumeVerdict,
+  PREGRAD_MIN_H1_VOLUME_USD,
+  PREGRAD_MIN_TRADERS_H1,
   VOL_MAX_PAIR_AGE_H,
   VOL_MIN_BUY_SELL_RATIO,
   VOL_MIN_H1_TXNS_FALLBACK,
@@ -157,5 +160,52 @@ describe("volume score (journal-only, CMC-adapted)", () => {
     expect(VOL_MIN_HEAT).toBe(1.0);
     expect(VOL_MIN_VOL_LIQ_RATIO).toBe(0.05);
     expect(VOL_MAX_PAIR_AGE_H).toBe(6);
+  });
+});
+
+describe("pre-grad activity floor (2026-11-24)", () => {
+  // Live shape of the desk's first 2 entries ever (0x8624…,
+  // 0xbb39…, 20:33 SAST): $0 h1 volume, 1 buy / 0 sells, 1 trader.
+  const deadPregrad = () =>
+    volumeMetrics(base({ volM5Usd: 0, volH1Usd: 0, tradersH1: 1, buysH1: 1, sellsH1: 0, liquidityUsd: null, priceChangeH1Pct: null, pairAgeH: 0.1 }));
+
+  it("blocks a 1-trader $0-volume pre-grad token, naming both failures", () => {
+    const f = pregradActivityFloor(deadPregrad());
+    expect(f.pass).toBe(false);
+    expect(f.reason).toContain("h1 volume $0 < $5");
+    expect(f.reason).toContain("traders 1 < 2");
+  });
+
+  it("passes a pre-grad token with $5+ h1 volume and 2+ traders", () => {
+    const f = pregradActivityFloor(
+      volumeMetrics(base({ volM5Usd: 6, volH1Usd: 6, tradersH1: 2, buysH1: 2, sellsH1: 0, liquidityUsd: null, priceChangeH1Pct: null, pairAgeH: 0.2 })),
+    );
+    expect(f.pass).toBe(true);
+    expect(f.reason).toBeNull();
+  });
+
+  it("passes on the txn-count fallback when GeckoTerminal trader data is absent", () => {
+    // tradersH1 null -> fallback to total h1 txns (2 buys = 2 traders).
+    const f = pregradActivityFloor(
+      volumeMetrics(base({ volM5Usd: 8, volH1Usd: 8, tradersH1: null, buysH1: 2, sellsH1: 0, liquidityUsd: null, priceChangeH1Pct: null, pairAgeH: 0.2 })),
+    );
+    expect(f.pass).toBe(true);
+  });
+
+  it("null h1 volume fails closed", () => {
+    const f = pregradActivityFloor(volumeMetrics(base({ volM5Usd: null, volH1Usd: null })));
+    expect(f.pass).toBe(false);
+    expect(f.reason).toContain("h1 volume unknown (fail-closed)");
+  });
+
+  it("null traders fails closed", () => {
+    const f = pregradActivityFloor({ ...volumeMetrics(base()), tradersH1: null });
+    expect(f.pass).toBe(false);
+    expect(f.reason).toContain("h1 traders unknown (fail-closed)");
+  });
+
+  it("floor constants are the documented bars", () => {
+    expect(PREGRAD_MIN_H1_VOLUME_USD).toBe(5);
+    expect(PREGRAD_MIN_TRADERS_H1).toBe(2);
   });
 });

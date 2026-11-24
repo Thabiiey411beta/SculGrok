@@ -92,7 +92,7 @@ import { BSC_FEES, breakEvenGrossPct, fixedCostPctOfPosition, legCostBnb, resolv
 import { fetchGoPlus, goplusVerdict } from "./goplus.js";
 import { fetchNewFourMemePoolsPages, fetchNewPancakePoolsPages, type BscCandidate } from "./discovery.js";
 import { fetchBnbPriceUsd, fetchCurveInfo, fetchDexPair, quotePancakeSell, type CurveInfo, type DexBscPair } from "./pricing.js";
-import { volumeJournalExtra, volumeVerdict, VOL_TRADER_BREADTH_FOR_HOLDER_FLOOR, type VolumeInputs } from "./volume.js";
+import { pregradActivityFloor, volumeJournalExtra, volumeVerdict, VOL_TRADER_BREADTH_FOR_HOLDER_FLOOR, type VolumeInputs } from "./volume.js";
 import { checkBscCluster } from "./bsc-cluster.js";
 
 export const BSC_DIR = "/home/hatch/workspace/goals/solana-memecoin-flipping-system/hidden_files/spotter-test-20261122-v2-bsc";
@@ -926,10 +926,11 @@ export async function runBscPoll(state: BscState, nowMs = Date.now()): Promise<B
     // bar on their OWN on-chain minimum (fee flip, 2026-11-24):
     // Helper3 reports minTradingFee 0 on classic launches, so a
     // $3.30 pre-grad position breaks even at ~7.7% and passes the
-    // 25% bar — the volume gates, not the fee, are now the binding
-    // pre-grad filter. A token whose Helper3 read is missing or
-    // shows a non-1% rate falls back to the 0.001 BNB minimum and
-    // stays fee-blocked at $15.
+    // 25% bar — the binding pre-grad filter is now the activity
+    // floor below (h1 volume >= $5 AND h1 traders >= 2), not the
+    // fee. A token whose Helper3 read is missing or shows a
+    // non-1% rate falls back to the 0.001 BNB minimum and stays
+    // fee-blocked at $15.
     let sizeUsd = state.equityUsd * BSC_PROFILE.startPositionPct;
     let positionBnb = sizeUsd / bnbPrice;
     const vol = volumeVerdict(volumeInputsForCandidate(cand, dex, nowMs));
@@ -949,6 +950,22 @@ export async function runBscPoll(state: BscState, nowMs = Date.now()): Promise<B
       block(state, cand.address, "volume gates failed: " + vol.failed.join("; ") + ` (volume score ${vol.score})`, mcUsd, nowMs, undefined, volExtra);
       summary.blocked += 1;
       continue;
+    }
+    // Pre-graduation activity floor (2026-11-24): the fee flip
+    // removed the fee bar as the pre-grad filter (minFee 0 on
+    // classic launches) and the v2 volume gates apply to graduated
+    // tokens only — so a minutes-old token with $0 volume and 1
+    // buy could enter (the desk's first 2 entries did exactly
+    // that, 20:33 SAST). Pre-grad candidates must show >= $5 h1
+    // volume AND >= 2 h1 traders; null/unknown fails closed.
+    // Graduated tokens skip this (their volume gates already apply).
+    if (!graduated) {
+      const floor = pregradActivityFloor(vol.metrics);
+      if (!floor.pass) {
+        block(state, cand.address, floor.reason!, mcUsd, nowMs, undefined, volExtra);
+        summary.blocked += 1;
+        continue;
+      }
     }
     if (be >= BSC_PROFILE.minBreakEvenGrossPct) {
       block(state, cand.address, `modelled break-even ${Math.round(be * 100)}% >= min ${Math.round(BSC_PROFILE.minBreakEvenGrossPct * 100)}%${graduated ? "" : " (pre-graduation)"} [${feeNote}] (volume score ${vol.score}${vol.pass ? ", volume gates pass" : ", volume gates: " + vol.failed.join("; ")})`, mcUsd, nowMs, undefined, volExtra);
