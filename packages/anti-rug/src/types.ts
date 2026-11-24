@@ -8,22 +8,13 @@ export interface RugCheckResult {
   warned: string[];
   details: Record<string, unknown>;
   checked_at: number;
-}
-
-export interface HardCheck {
-  name: string;
-  /** Return true if this check alone forces a block */
-  run: (ctx: CheckContext) => Promise<boolean> | boolean;
-}
-
-export interface CheckContext {
-  mint: string;
-  rpc: any; // Solana connection or equivalent
-  tradeStream?: any;
-  config: {
-    maxTop10Pct: number;
-    maxBundlePct: number;
-    maxDevSoldPct: number;
-    maxWashPct: number;
-  };
+  /** Fields whose measurement was explicitly DEFERRED to a later
+   * stage (evaluateRug `deferFields`): their `*_unknown` reasons
+   * are listed here instead of in `failed`, so a caller can pass
+   * the other legs first and measure these before entry. A result
+   * with a non-empty `deferred` is PROVISIONAL — it is not a pass
+   * until the caller re-evaluates with the measured values. Never
+   * treat a deferred field as measured, and never enter on a
+   * result with deferred.length > 0. */
+  deferred?: string[];
 }

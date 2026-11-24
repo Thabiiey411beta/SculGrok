@@ -5,7 +5,6 @@ export type KillState = "ok" | "paused" | "killed" | "halted";
 export interface RiskState {
   startEquityUsd: number;
   equityUsd: number;
-  peakEquityUsd: number;
   openPositions: number;
   tradesToday: number;
   kill: KillState;
@@ -16,7 +15,6 @@ export function newRiskState(startEquityUsd: number): RiskState {
   return {
     startEquityUsd,
     equityUsd: startEquityUsd,
-    peakEquityUsd: startEquityUsd,
     openPositions: 0,
     tradesToday: 0,
     kill: "ok",
@@ -36,6 +34,12 @@ export function checkRisk(
   profile: MicroProfile = MICRO_PROFILE,
 ): RiskVerdict {
   const maxSize = state.equityUsd * profile.maxPositionPct;
+  // Fail-closed first: a non-positive or NaN size is never allowed
+  // (NaN > maxSize is false, so without this the check below would
+  // pass it through).
+  if (!(sizeUsd > 0)) {
+    return { verdict: "deny", reason: "position size must be a positive number", maxSizeUsd: maxSize };
+  }
   if (state.kill === "halted") {
     return { verdict: "halt", reason: "desk halted: " + (state.haltReason ?? "daily loss limit"), maxSizeUsd: 0 };
   }
@@ -62,6 +66,10 @@ export function checkRisk(
 }
 
 export function applyLoss(state: RiskState, lossUsd: number, profile: MicroProfile = MICRO_PROFILE): RiskState {
+  // A negative or NaN "loss" is a gain (or garbage) — applyLoss only
+  // ever subtracts. Return the state unchanged rather than crediting
+  // equity through the loss path.
+  if (!(lossUsd > 0)) return state;
   const next: RiskState = { ...state, equityUsd: state.equityUsd - lossUsd };
   if (next.startEquityUsd - next.equityUsd >= next.startEquityUsd * profile.dailyLossLimitPct) {
     next.kill = "halted";

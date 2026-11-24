@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.jsonl
+spotter-test-*/
+ws-relay/
+__pycache__/
+*.pyc
+*.log
+.muse-github-snapshot-sync.json

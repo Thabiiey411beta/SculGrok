@@ -1,6 +1,10 @@
 /**
- * Fee model for $3 flips.
- * All amounts in SOL unless stated. ATA rent is reclaimable on final close.
+ * Fee model for the $10 run.
+ * All amounts in SOL unless stated. ATA rent is a cost by default:
+ * it is reclaimed only on a confirmed clean close, which the paper
+ * books never confirm (rugs and halts never close cleanly, exactly
+ * when the rent is lost). Models therefore carry ataReclaimed: false
+ * and every break-even / leg cost includes the rent.
  */
 export const ATA_RENT_SOL = 0.00203928;
 export const BASE_FEE_SOL = 0.000005;
@@ -22,7 +26,7 @@ export const LIGHT_FEES: FeeModel = {
   poolFeePct: 0.01,
   slippagePct: 0.02,
   ataRentSol: ATA_RENT_SOL,
-  ataReclaimed: true,
+  ataReclaimed: false,
 };
 
 export const SNIPER_FEES: FeeModel = {
@@ -32,7 +36,7 @@ export const SNIPER_FEES: FeeModel = {
   poolFeePct: 0.01,
   slippagePct: 0.02,
   ataRentSol: ATA_RENT_SOL,
-  ataReclaimed: true,
+  ataReclaimed: false,
 };
 
 export function fixedCostPerLegSol(model: FeeModel): number {

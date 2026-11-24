@@ -49,20 +49,21 @@ const CLEAN_GEM: Omit<GemInput, "mint" | "positionSol"> = {
   smartMoneyWallets: 2,
   smartMoneyMinTrades: 12,
   clusterPct: 0.1,
-  washPct: 0.1,
+  // No washPct: wash is logged-only since v2.20, not a gem input.
   socialBeforeFlow: false,
   curveProgressPct: 80,
   migrated: true,
   liquidityUsd: 20000,
 };
 
-export function runPaper(journalPath: string): PaperSummary {
+export function runPaper(journalPath: string, solPriceUsd: number): PaperSummary {
+  if (!(solPriceUsd > 0)) throw new Error("runPaper: solPriceUsd must be a live price > 0");
   let equity = MICRO_PROFILE.startEquityUsd;
   let trades = 0;
   let wins = 0;
   let losses = 0;
   let blocked = 0;
-  const solPrice = MICRO_PROFILE.solPriceUsd;
+  const solPrice = solPriceUsd;
   const scenarios: PaperScenario[] = [
     { name: "winner", mint: "WINNER111111111111111111111111111111111111", prices: [1, 1.2, 1.5, 1.8, 2.0], minutesPerTick: 10 },
     { name: "loser", mint: "LOSER1111111111111111111111111111111111111", prices: [1, 0.9, 0.8, 0.7], minutesPerTick: 10 },
@@ -75,7 +76,7 @@ export function runPaper(journalPath: string): PaperSummary {
       : { ...CLEAN_RUG, mint: sc.mint };
     const rug = evaluateRug(rugInput);
     const sizeUsd = positionSizeUsd(equity);
-    const sizeSol = positionSizeSol(equity);
+    const sizeSol = positionSizeSol(equity, solPrice);
     const gem = evaluateGem({ ...CLEAN_GEM, mint: sc.mint, positionSol: sizeSol }, rug);
     appendJournal(journalPath, journalEntry(sc.mint, "signal", gem.reason, { score: gem.score, sizeUsd, equityUsd: equity }));
     if (!gem.actionable) {
@@ -88,8 +89,11 @@ export function runPaper(journalPath: string): PaperSummary {
     let pos: Position = openPosition(sc.name, sc.mint, entryPrice, sizeUsd, 0);
     let proceedsUsd = 0;
     let costUsd = 0;
-    // Buy leg
-    costUsd += legCostSol(sizeSol, LIGHT_FEES, true) * solPrice;
+    // Buy leg, charged here and subtracted from P&L below (SOUL audit
+    // fix: the old pnl = proceeds - size never subtracted it, so
+    // every trade's P&L was overstated by the buy-leg cost).
+    const buyLegCostUsd = legCostSol(sizeSol, LIGHT_FEES, true) * solPrice;
+    costUsd += buyLegCostUsd;
     let closed = false;
     for (let i = 1; i < sc.prices.length; i++) {
       const atMs = i * sc.minutesPerTick * 60000;
@@ -119,7 +123,9 @@ export function runPaper(journalPath: string): PaperSummary {
       proceedsUsd += grossSol * solPrice - legCost;
       appendJournal(journalPath, journalEntry(sc.mint, "close", "end of scenario, close rest", { price: lastPrice, feesUsd: legCost }));
     }
-    const pnl = proceedsUsd - sizeUsd;
+    // Sell legs are already netted inside proceedsUsd (proceeds =
+    // gross - legCost); the buy leg is the only cost left to subtract.
+    const pnl = proceedsUsd - sizeUsd - buyLegCostUsd;
     equity += pnl;
     if (pnl > 0) wins += 1;
     else losses += 1;
