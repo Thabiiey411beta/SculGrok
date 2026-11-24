@@ -31,10 +31,12 @@
  * computed for later calibration; it never gates.
  *
  * Pre-graduation: the volume gates are EVALUATED and journaled for
- * every deep-checked pre-grad token, but entries stay blocked by
- * the existing fee model (four.meme 1% min 0.001 BNB = ~33% round
- * trip on a $3.30 position; break-even ~38.7% > the 25% bar).
- * The volume ruleset is effectively graduated-first at $15 equity.
+ * every deep-checked pre-grad token, but they only gate graduated
+ * tokens. Pre-grad entries were blocked by the fee model until the
+ * 2026-11-24 fee flip (per-token Helper3 minimum, 0 on classic
+ * launches); since then the binding pre-grad filter is the
+ * activity floor in pregradActivityFloor (h1 volume >= $5 AND
+ * h1 traders >= 2, fail-closed on unknown).
  */
 
 export const VOL_MIN_M5_USD = 300;
@@ -66,6 +68,36 @@ export const VOL_MIN_H1_TXNS_FALLBACK = 20;
  * the live breadth is the better distribution evidence. 50 is the
  * CMC snipe-score top trader tier. UNPROVEN. */
 export const VOL_TRADER_BREADTH_FOR_HOLDER_FLOOR = 50;
+/** Pre-graduation activity floor (2026-11-24): with the fee flip's
+ * per-token minimum (0 on classic launches) the fee bar no longer
+ * keeps dead pre-grad tokens out — the desk's first 2 entries ever
+ * (0x8624…, 0xbb39…, 2026-11-24 20:33 SAST) were minutes-old
+ * tokens with $0 h1 volume, 1 buy / 0 sells, raised 0.0000 BNB.
+ * A pre-grad candidate must show at least $5 h1 volume AND at
+ * least 2 h1 traders (unique GT traders, or the txn-count fallback
+ * when GT data is absent — the same breadth measure the graduated
+ * gates use). Graduated tokens are unaffected: their v2 volume
+ * gates already apply. UNPROVEN bars — first calibration data
+ * will come from the journal. No new calls: uses fields already
+ * measured at Gate 3. */
+export const PREGRAD_MIN_H1_VOLUME_USD = 5;
+export const PREGRAD_MIN_TRADERS_H1 = 2;
+
+/** Pre-grad activity floor verdict. Null/unknown volume or traders
+ * fails closed (missing data = block). */
+export function pregradActivityFloor(m: VolumeMetrics): { pass: boolean; reason: string | null } {
+  if (m.volH1Usd === null)
+    return { pass: false, reason: "pre-grad activity floor: h1 volume unknown (fail-closed)" };
+  if (m.tradersH1 === null)
+    return { pass: false, reason: "pre-grad activity floor: h1 traders unknown (fail-closed)" };
+  const failed: string[] = [];
+  if (m.volH1Usd < PREGRAD_MIN_H1_VOLUME_USD)
+    failed.push(`h1 volume $${Math.round(m.volH1Usd)} < $${PREGRAD_MIN_H1_VOLUME_USD}`);
+  if (m.tradersH1 < PREGRAD_MIN_TRADERS_H1)
+    failed.push(`traders ${m.tradersH1} < ${PREGRAD_MIN_TRADERS_H1}`);
+  if (failed.length > 0) return { pass: false, reason: "pre-grad activity floor: " + failed.join(", ") };
+  return { pass: true, reason: null };
+}
 
 export interface VolumeInputs {
   volM5Usd: number | null;
